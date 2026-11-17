@@ -29,6 +29,7 @@ party are never touched.
 
 - `MT` `OT` `H1` `H2` `M1` `M2` `R1` `R2`, as used in raid plans (or `MT` `ST` `H1` `H2` `D1`–`D4` if you prefer).
 - Shown before or after the name, as boxed letters or plain text.
+- Its own size (0.25x to 4x) and fine-tuning offsets, independent of the name.
 - A colour per role (tank, healer, melee, ranged). The defaults are the same game UI colours xivPartyIcons uses.
 
 **Role assignment**

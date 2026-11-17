@@ -22,8 +22,9 @@ internal sealed unsafe class NameplateController : IDisposable
 {
     private const string AddonName = "NamePlate";
 
-    /// <summary>Node id of our icon inside each nameplate component ("PIE1").</summary>
+    /// <summary>Node ids of our nodes inside each nameplate component ("PIE1", "PIE2").</summary>
     private const uint IconNodeId = 0x50494531;
+    private const uint IndicatorNodeId = 0x50494532;
 
     /// <summary>
     /// A blank game icon. Showing it makes the game position its own name icon node even when it has nothing to
@@ -34,7 +35,7 @@ internal sealed unsafe class NameplateController : IDisposable
     // Geometry of the name container, in its own (unscaled) coordinates.
     private const float PlateCenterX = 144f;
     private const float PlateBottomY = 107f;
-    private const float IconHalf = IconNode.Size / 2f;
+    private const float IconHalf = NativeNodes.IconSize / 2f;
     private const float LineHeight = 18f;
 
     // Distance between the game's name icon node and where an icon should sit to hug the name.
@@ -124,7 +125,7 @@ internal sealed unsafe class NameplateController : IDisposable
                     }
                 }
                 catch (Exception e) {
-                    Service.Log.Error(e, "Could not add job icon nodes to the nameplates; nameplates are left untouched");
+                    Service.Log.Error(e, "Could not add nodes to the nameplates; nameplates are left untouched");
                     DestroyNodes(addon);
                     plates = [];
                     stage = Stage.Failed;
@@ -152,7 +153,11 @@ internal sealed unsafe class NameplateController : IDisposable
             }
 
             if (plate.IconVisible) {
-                SyncIconFlags(plate);
+                SyncFlags(plate, (AtkResNode*)plate.Icon);
+            }
+
+            if (plate.IndicatorVisible) {
+                SyncFlags(plate, (AtkResNode*)plate.Indicator);
             }
 
             if (plate.NeedsCollisionUpdate) {
@@ -263,13 +268,28 @@ internal sealed unsafe class NameplateController : IDisposable
 
         layout.ShowIcon = config.ShowJobIcon && JobData.TryGetIcon(config.JobIconStyle, jobId, out layout.Icon);
 
+        if (config.ShowRoleIndicator && config.RoleIndicatorFloats && role != RoleId.None) {
+            layout.FloatingIndicator = role;
+            layout.IndicatorCells = text.FloatingIndicatorCells(role);
+
+            var neighbour = handler.GetFieldAsSpan(
+                IndicatorIsAfterName ? NamePlateStringField.FreeCompanyTag : NamePlateStringField.StatusPrefix);
+            if (neighbour.Length > 0) {
+                layout.IndicatorNeighbour = new byte[neighbour.Length + 1];
+                neighbour.CopyTo(layout.IndicatorNeighbour);
+            }
+        }
+
+        // Both of our nodes are placed relative to the game's name icon, so it has to be laid out.
+        var needsAnchor = layout.ShowIcon || layout.FloatingIndicator != RoleId.None;
+
         var nativeIcon = handler.NameIconId;
         layout.HasNativeIcon = nativeIcon > 0 && nativeIcon != BlankIconId;
         if (layout.HasNativeIcon && config.HideStatusIcon) {
             layout.HasNativeIcon = false;
-            handler.NameIconId = layout.ShowIcon ? BlankIconId : -1;
+            handler.NameIconId = needsAnchor ? BlankIconId : -1;
         }
-        else if (!layout.HasNativeIcon && layout.ShowIcon) {
+        else if (!layout.HasNativeIcon && needsAnchor) {
             handler.NameIconId = BlankIconId;
         }
 
@@ -303,15 +323,15 @@ internal sealed unsafe class NameplateController : IDisposable
                     // Mirror image of the left position around the centre of the plate.
                     node->OriginX = padding;
                     node->OriginY = IconHalf;
-                    x = (2 * PlateCenterX) - (anchor->X + IconNode.Size + AnchorGapBesideName) - padding;
+                    x = (2 * PlateCenterX) - (anchor->X + NativeNodes.IconSize + AnchorGapBesideName) - padding;
                     y = anchor->Y;
                     break;
 
                 case JobIconPosition.Above:
                     node->OriginX = IconHalf;
-                    node->OriginY = IconNode.Size - padding;
+                    node->OriginY = NativeNodes.IconSize - padding;
                     x = PlateCenterX - IconHalf;
-                    y = lineCenterY - (LineHeight / 2f) - (layout.TitleLine < 0 ? LineHeight : 0f) - IconNode.Size + padding;
+                    y = lineCenterY - (LineHeight / 2f) - (layout.TitleLine < 0 ? LineHeight : 0f) - NativeNodes.IconSize + padding;
                     break;
 
                 case JobIconPosition.Below:
@@ -323,7 +343,7 @@ internal sealed unsafe class NameplateController : IDisposable
 
                 default:
                     // Scale away from the name, so the gap to the text stays the same at any size.
-                    node->OriginX = IconNode.Size - padding;
+                    node->OriginX = NativeNodes.IconSize - padding;
                     node->OriginY = IconHalf;
                     x = anchor->X + (layout.HasNativeIcon ? AnchorGapBesideNativeIcon : AnchorGapBesideName) + padding;
                     y = anchor->Y;
@@ -339,12 +359,14 @@ internal sealed unsafe class NameplateController : IDisposable
             }
 
             plate.IconVisible = true;
-            SyncIconFlags(plate);
+            SyncFlags(plate, (AtkResNode*)node);
         }
         else {
             node->ToggleVisibility(false);
             plate.IconVisible = false;
         }
+
+        ApplyIndicator(plate);
 
         var container = obj->NameContainer;
         if (MathF.Abs(config.PlateScale - 1f) < 0.001f) {
@@ -366,13 +388,85 @@ internal sealed unsafe class NameplateController : IDisposable
     }
 
     /// <summary>
-    /// The icon follows the name text: visible only while the name is, and depth-sorted the same way.
+    /// Shows the role indicator in its own node when it has a custom size or position. The name text contains
+    /// blank cells where the indicator belongs; the node is centred on those and then scaled and offset.
     /// </summary>
-    private static void SyncIconFlags(PlateState plate)
+    private void ApplyIndicator(PlateState plate)
+    {
+        var node = plate.Indicator;
+        var role = plate.Layout.FloatingIndicator;
+
+        if (role == RoleId.None) {
+            node->ToggleVisibility(false);
+            plate.IndicatorVisible = false;
+            return;
+        }
+
+        if (plate.IndicatorRole != role || plate.IndicatorTextVersion != text.Version) {
+            fixed (byte* indicatorText = text.GetFloatingIndicator(role)) {
+                node->SetText(indicatorText);
+            }
+
+            plate.IndicatorRole = role;
+            plate.IndicatorTextVersion = text.Version;
+        }
+
+        var obj = plate.Object;
+        var anchor = obj->NameIcon;
+
+        // The name text is drawn at a fraction of its font size.
+        var textScale = obj->NameText->ScaleX;
+
+        // Whatever shares the line on the far side of the reserved cells pushes them inwards.
+        var neighbourWidth = 0f;
+        if (plate.Layout.IndicatorNeighbour is { } neighbour) {
+            ushort width = 0, height = 0;
+            fixed (byte* neighbourText = neighbour) {
+                obj->NameText->GetTextDrawSize(&width, &height, neighbourText);
+            }
+
+            neighbourWidth = width * textScale;
+        }
+
+        // The name line starts right after the game's name icon and is centred on the plate.
+        var lineLeft = anchor->X + NativeNodes.IconSize;
+        var lineRight = (2 * PlateCenterX) - lineLeft;
+        var reserved = plate.Layout.IndicatorCells * NameplateText.CellWidth;
+
+        var centerX = IndicatorIsAfterName
+            ? lineRight - neighbourWidth - (reserved / 2f)
+            : lineLeft + neighbourWidth + (reserved / 2f);
+        var centerY = anchor->Y + IconHalf;
+
+        // Match the name text, so the glyphs are the same size at 1x.
+        var scale = textScale * config.RoleIndicatorScale;
+
+        node->OriginX = NativeNodes.TextWidth / 2f;
+        node->OriginY = NativeNodes.TextHeight / 2f;
+        node->SetScale(scale, scale);
+        node->SetPositionFloat(
+            centerX - (NativeNodes.TextWidth / 2f) + config.RoleIndicatorOffsetX,
+            centerY - (NativeNodes.TextHeight / 2f) + config.RoleIndicatorOffsetY);
+
+        plate.IndicatorVisible = true;
+        SyncFlags(plate, (AtkResNode*)node);
+    }
+
+    /// <summary>
+    /// Whether the indicator trails the name. With the name hidden the indicator takes the name's place, which
+    /// counts as leading.
+    /// </summary>
+    private bool IndicatorIsAfterName =>
+        config.ShowName && config.RoleIndicatorPosition == RoleIndicatorPosition.AfterName;
+
+    /// <summary>
+    /// Our nodes follow the name text: visible only while the name is, and depth-sorted the same way.
+    /// </summary>
+    private static void SyncFlags(PlateState plate, AtkResNode* node)
     {
         const NodeFlags synced = NodeFlags.UseDepthBasedPriority | NodeFlags.Visible;
         var nameFlags = plate.Object->NameText->NodeFlags;
-        plate.Icon->NodeFlags ^= (plate.Icon->NodeFlags ^ nameFlags) & synced;
+        node->NodeFlags ^= (node->NodeFlags ^ nameFlags) & synced;
     }
 
     /// <summary>Keeps the clickable area of the plate in step with its scale.</summary>
@@ -419,6 +513,8 @@ internal sealed unsafe class NameplateController : IDisposable
 
         plate.Icon->ToggleVisibility(false);
         plate.IconVisible = false;
+        plate.Indicator->ToggleVisibility(false);
+        plate.IndicatorVisible = false;
         plate.NeedsCollisionUpdate = false;
         plate.HasPendingLayout = false;
         plate.Modified = false;
@@ -438,7 +534,7 @@ internal sealed unsafe class NameplateController : IDisposable
     }
 
     /// <summary>
-    /// Adds an icon node to every nameplate. Returns false if the addon is not fully loaded yet, in which case it is
+    /// Adds our icon and indicator nodes to every nameplate. Returns false if the addon is not fully loaded yet, in which case it is
     /// safe to simply call this again on a later frame.
     /// </summary>
     private bool CreateNodes(AddonNamePlate* addon)
@@ -455,21 +551,38 @@ internal sealed unsafe class NameplateController : IDisposable
                 return false;
             }
 
-            // A node may be left over if nameplates were only partially set up on an earlier attempt.
-            var node = IconNode.Find(uldManager, IconNodeId);
-            if (node == null) {
-                node = IconNode.Create(IconNodeId);
-                if (node == null) {
+            // Nodes may be left over if nameplates were only partially set up on an earlier attempt.
+            var icon = (AtkImageNode*)NativeNodes.Find(uldManager, IconNodeId, NodeType.Image);
+            if (icon == null) {
+                icon = NativeNodes.CreateImage(IconNodeId);
+                if (icon == null) {
                     throw new InvalidOperationException($"Could not allocate the icon node for nameplate {i}");
                 }
 
-                if (!IconNode.Link(node, obj->NameContainer, uldManager)) {
-                    IconNode.Free(node);
+                if (!NativeNodes.Link((AtkResNode*)icon, obj->NameContainer, uldManager)) {
+                    NativeNodes.FreeImage(icon);
                     throw new InvalidOperationException($"Nameplate {i} has no nodes to attach the icon to");
                 }
             }
 
-            created[i] = new PlateState { Object = obj, Icon = node };
+            var indicator = (AtkTextNode*)NativeNodes.Find(uldManager, IndicatorNodeId, NodeType.Text);
+            if (indicator == null) {
+                if (obj->NameText == null) {
+                    return false;
+                }
+
+                indicator = NativeNodes.CreateText(IndicatorNodeId, obj->NameText);
+                if (indicator == null) {
+                    throw new InvalidOperationException($"Could not allocate the indicator node for nameplate {i}");
+                }
+
+                if (!NativeNodes.Link((AtkResNode*)indicator, obj->NameContainer, uldManager)) {
+                    NativeNodes.FreeText(indicator);
+                    throw new InvalidOperationException($"Nameplate {i} has no nodes to attach the indicator to");
+                }
+            }
+
+            created[i] = new PlateState { Object = obj, Icon = icon, Indicator = indicator };
         }
 
         plates = created;
@@ -488,9 +601,16 @@ internal sealed unsafe class NameplateController : IDisposable
                 continue;
             }
 
-            var node = IconNode.Find(uldManager, IconNodeId);
-            if (node != null) {
-                IconNode.Destroy(node, uldManager);
+            var icon = (AtkImageNode*)NativeNodes.Find(uldManager, IconNodeId, NodeType.Image);
+            if (icon != null) {
+                NativeNodes.Unlink((AtkResNode*)icon, uldManager);
+                NativeNodes.FreeImage(icon);
+            }
+
+            var indicator = (AtkTextNode*)NativeNodes.Find(uldManager, IndicatorNodeId, NodeType.Text);
+            if (indicator != null) {
+                NativeNodes.Unlink((AtkResNode*)indicator, uldManager);
+                NativeNodes.FreeText(indicator);
             }
         }
     }

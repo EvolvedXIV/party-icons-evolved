@@ -41,6 +41,9 @@ public sealed class PluginConfiguration : IPluginConfiguration
     public RoleIndicatorStyle RoleIndicatorStyle = RoleIndicatorStyle.Boxed;
     public RoleIndicatorPosition RoleIndicatorPosition = RoleIndicatorPosition.BeforeName;
     public RoleNaming RoleNaming = RoleNaming.Western;
+    public float RoleIndicatorScale = 1f;
+    public float RoleIndicatorOffsetX;
+    public float RoleIndicatorOffsetY;
 
     // Role colours. Null means "use the game's own UI colour", which matches xivPartyIcons.
     public Vector4? TankColor;
@@ -54,6 +57,14 @@ public sealed class PluginConfiguration : IPluginConfiguration
     public bool ChatAliases = true;
     public bool NotifyChatAssignment = true;
     public bool ContextMenu = true;
+
+    /// <summary>
+    /// Whether the role indicator has its own size or position. It is then drawn by a separate node instead of
+    /// being part of the name text, which cannot be scaled or moved piece by piece.
+    /// </summary>
+    [Newtonsoft.Json.JsonIgnore]
+    public bool RoleIndicatorFloats =>
+        MathF.Abs(RoleIndicatorScale - 1f) > 0.001f || RoleIndicatorOffsetX != 0f || RoleIndicatorOffsetY != 0f;
 
     public Vector4? GetRoleColor(RoleCategory category) => category switch
     {
@@ -82,6 +93,9 @@ public sealed class PluginConfiguration : IPluginConfiguration
         JobIconScale = Math.Clamp(JobIconScale, 0.25f, 4f);
         JobIconOffsetX = Math.Clamp(JobIconOffsetX, -150f, 150f);
         JobIconOffsetY = Math.Clamp(JobIconOffsetY, -150f, 150f);
+        RoleIndicatorScale = Math.Clamp(RoleIndicatorScale, 0.25f, 4f);
+        RoleIndicatorOffsetX = Math.Clamp(RoleIndicatorOffsetX, -150f, 150f);
+        RoleIndicatorOffsetY = Math.Clamp(RoleIndicatorOffsetY, -150f, 150f);
     }
 
     public static PluginConfiguration Load()

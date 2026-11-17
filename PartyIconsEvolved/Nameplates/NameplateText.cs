@@ -23,9 +23,16 @@ internal sealed class NameplateText
     /// <summary>UIColor row used for the outline of the role indicator (black), as in xivPartyIcons.</summary>
     private const uint IndicatorEdgeUiColor = 51;
 
+    /// <summary>Width of one full-width character cell at nameplate size, the same as one boxed letter.</summary>
+    public const float CellWidth = 18f;
+
+    /// <summary>Approximate width of one regular letter at nameplate size.</summary>
+    private const float PlainLetterWidth = 10f;
+
     private readonly PluginConfiguration config;
     private readonly Dictionary<(RoleId Role, RoleCategory NameColor), (Payload[] Prefix, Payload[] Suffix)> wraps = new();
     private readonly Dictionary<RoleId, Payload[]> indicators = new();
+    private readonly Dictionary<RoleId, byte[]> floatingIndicators = new();
 
     public NameplateText(PluginConfiguration config)
     {
@@ -37,7 +44,12 @@ internal sealed class NameplateText
     {
         wraps.Clear();
         indicators.Clear();
+        floatingIndicators.Clear();
+        Version++;
     }
+
+    /// <summary>Changes whenever previously built text may be out of date.</summary>
+    public int Version { get; private set; }
 
     /// <summary>Applies the configured name and role indicator to a nameplate that is being updated.</summary>
     public void Apply(INamePlateUpdateHandler handler, RoleId role, RoleCategory jobCategory)
@@ -70,8 +82,34 @@ internal sealed class NameplateText
         handler.NameParts.TextWrap = (ToSeString(prefix), ToSeString(suffix));
     }
 
-    /// <summary>The coloured role indicator on its own, e.g. for notifications.</summary>
-    public SeString BuildIndicator(RoleId role) => ToSeString(GetIndicator(role));
+    /// <summary>
+    /// The coloured role indicator as null-terminated game text, for the separate indicator node.
+    /// </summary>
+    public byte[] GetFloatingIndicator(RoleId role)
+    {
+        if (!floatingIndicators.TryGetValue(role, out var bytes)) {
+            var builder = new LuminaSeStringBuilder();
+            AppendColoredIndicator(builder, role);
+            var text = builder.ToArray();
+            bytes = new byte[text.Length + 1];
+            text.CopyTo(bytes, 0);
+            floatingIndicators[role] = bytes;
+        }
+
+        return bytes;
+    }
+
+    /// <summary>
+    /// How many blank character cells to leave in the name text for a floating indicator, so that the name and
+    /// the job icon make room for it at its configured size.
+    /// </summary>
+    public int FloatingIndicatorCells(RoleId role)
+    {
+        var letters = role.Label(config.RoleNaming).Length;
+        var letterWidth = config.RoleIndicatorStyle == RoleIndicatorStyle.Boxed ? CellWidth : PlainLetterWidth;
+        var width = letters * letterWidth * config.RoleIndicatorScale;
+        return Math.Max(1, (int)MathF.Round(width / CellWidth));
+    }
 
     /// <summary>The indicator as plain characters (boxed glyphs or letters), without colour.</summary>
     public string IndicatorText(RoleId role)
@@ -171,7 +209,21 @@ internal sealed class NameplateText
         return payloads;
     }
 
+    /// <summary>
+    /// Appends the indicator as it appears in the name text: the indicator itself, or blank space of the right
+    /// width when the indicator is drawn separately on top of it.
+    /// </summary>
     private void AppendIndicator(LuminaSeStringBuilder builder, RoleId role)
+    {
+        if (config.RoleIndicatorFloats) {
+            builder.Append(new string(Placeholder[0], FloatingIndicatorCells(role)));
+        }
+        else {
+            AppendColoredIndicator(builder, role);
+        }
+    }
+
+    private void AppendColoredIndicator(LuminaSeStringBuilder builder, RoleId role)
     {
         var category = role.Category();
         builder.PushEdgeColorType(IndicatorEdgeUiColor);

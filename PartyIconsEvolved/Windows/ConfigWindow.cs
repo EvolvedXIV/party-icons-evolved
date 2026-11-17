@@ -122,8 +122,14 @@ internal sealed class ConfigWindow : Window
                     if (tab) {
                         using var child = ImRaii.Child("##nameplate");
                         changed |= DrawNameSection();
-                        changed |= DrawJobIconSection();
                         changed |= DrawScopeSection();
+                    }
+                }
+
+                using (var tab = ImRaii.TabItem("Job icon")) {
+                    if (tab) {
+                        using var child = ImRaii.Child("##jobIcon");
+                        changed |= DrawJobIconSection();
                     }
                 }
 
@@ -266,6 +272,29 @@ internal sealed class ConfigWindow : Window
 
             ImGui.SetNextItemWidth(ItemWidth);
             changed |= EnumCombo("Position##indicator", ref config.RoleIndicatorPosition, RoleIndicatorPositions);
+
+            ImGui.SetNextItemWidth(ItemWidth);
+            changed |= ImGui.SliderFloat("Size##indicator", ref config.RoleIndicatorScale, 0.25f, 4f, "%.2fx");
+
+            ImGui.SetNextItemWidth(ItemWidth);
+            changed |= ImGui.SliderFloat(
+                "Horizontal offset##indicator", ref config.RoleIndicatorOffsetX, -100f, 100f, "%.0f");
+
+            ImGui.SetNextItemWidth(ItemWidth);
+            changed |= ImGui.SliderFloat(
+                "Vertical offset##indicator", ref config.RoleIndicatorOffsetY, -100f, 100f, "%.0f");
+            HelpMarker("Fine-tunes the position. Positive values move the indicator right and down.\n\n" +
+                       "At 1.00x with both offsets at 0 the indicator is simply part of the name text. With any " +
+                       "other value it is drawn separately, and the name leaves a gap of matching width for it.");
+
+            using (ImRaii.Disabled(!config.RoleIndicatorFloats)) {
+                if (ImGui.Button("Reset size and offsets")) {
+                    config.RoleIndicatorScale = 1f;
+                    config.RoleIndicatorOffsetX = 0f;
+                    config.RoleIndicatorOffsetY = 0f;
+                    changed = true;
+                }
+            }
         }
 
         ImGui.SetNextItemWidth(ItemWidth);
