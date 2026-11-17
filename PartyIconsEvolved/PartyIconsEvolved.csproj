@@ -1,0 +1,10 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+    <PropertyGroup>
+        <Version>1.0.0.0</Version>
+        <Description>Native-feeling job icons and raid role indicators on party member nameplates.</Description>
+        <PackageProjectUrl>https://github.com/ffxivplugins/party-icons-evolved</PackageProjectUrl>
+        <IsPackable>false</IsPackable>
+        <!-- Lets the Windows-targeted project build on Linux/macOS (CI, XIVLauncher.Core users). -->
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    </PropertyGroup>
+</Project>

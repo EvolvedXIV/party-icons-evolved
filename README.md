@@ -1,0 +1,86 @@
+# Party Icons Evolved
+
+A [Dalamud](https://github.com/goatcorp/Dalamud) plugin for FINAL FANTASY XIV that customises the nameplates above
+your party members: job icon, raid role indicator, and a name as short as you want it.
+
+Everything is drawn by the game's own nameplate UI rather than as an overlay on top of it. The text uses the game
+font and the game's boxed letters, the job icon is a native image node inside the nameplate, and both are scaled,
+depth-sorted, faded and hidden by the game exactly like the rest of the nameplate. Players who are not in your
+party are never touched.
+
+## Features
+
+**Name**
+
+- Show or hide the name.
+- Limit it to a maximum number of characters. This is applied on top of the game's own setting, so the name is
+  first abbreviated the way you chose under *Character Configuration → Display Name Settings → Display Type*
+  (Full Name, Surname Abbreviated, Forename Abbreviated, Initials) and then cut to your limit.
+- Colour: the game's default, the colour of the player's role, or a colour of your choice.
+- Optionally hide the title and the Free Company tag, and scale the whole nameplate.
+
+**Job icon**
+
+- Four styles: framed (as on the party list), embossed, glowing, or tinted by role.
+- Position: left, right, above or below the name, with fine-tuning offsets.
+- Size from 0.25x to 4x.
+
+**Role indicator**
+
+- `MT` `OT` `H1` `H2` `M1` `M2` `R1` `R2`, as used in raid plans (or `MT` `ST` `H1` `H2` `D1`–`D4` if you prefer).
+- Shown before or after the name, as boxed letters or plain text.
+- A colour per role (tank, healer, melee, ranged). The defaults are the same game UI colours xivPartyIcons uses.
+
+**Role assignment**
+
+- *Automatic*: the first tank on the party list is MT, the second OT, and likewise for healers, melee and ranged.
+- *Party chat*: a party member who sends a message that contains only a role, e.g. `M1`, gets that role.
+- *Right-click*: right-click a party member (in the world or on the party list) → **Role Indicator** → pick one.
+- *Settings window*: the *Role assignment* tab lists the current party with a dropdown per member.
+
+Roles set by chat or by hand always win over automatic ones, and the rest of the party moves out of the way. They
+are forgotten when you leave the party, or with `/pie reset`.
+
+## Usage
+
+| Command      | Effect                                  |
+|--------------|-----------------------------------------|
+| `/pie`       | Open the settings window                |
+| `/pie reset` | Forget all manually assigned roles      |
+
+Tick **Preview on everyone nearby** at the top of the settings window to apply your settings to every player
+around you (and yourself) while the window is open – no party needed to try things out.
+
+Nameplates are left alone in PvP. Running this next to xivPartyIcons is not recommended, as both would edit the
+same nameplates.
+
+## Building
+
+Requires the .NET 10 SDK and a Dalamud installation (XIVLauncher installs one; otherwise point `DALAMUD_HOME` at
+an extracted [Dalamud distribution](https://goatcorp.github.io/dalamud-distrib/latest.zip)).
+
+```
+dotnet build PartyIconsEvolved.sln -c Release
+dotnet test PartyIconsEvolved.Tests -c Release
+```
+
+The plugin ends up in `PartyIconsEvolved/bin/x64/Release/`. To load it in game, add that folder under
+*Dalamud Settings → Experimental → Dev Plugin Locations*.
+
+The tests cover the parts that do not need the game (role parsing, role assignment, name shortening) and run on
+any platform.
+
+## Layout
+
+| Path                              | What it does                                                           |
+|-----------------------------------|------------------------------------------------------------------------|
+| `PartyIconsEvolved/Nameplates/`   | Nameplate text, the native job icon node, and the update lifecycle     |
+| `PartyIconsEvolved/Roles/`        | Roles, assignment rules, the chat listener and the right-click menu    |
+| `PartyIconsEvolved/Game/`         | Party tracking and job data                                            |
+| `PartyIconsEvolved/Windows/`      | The settings window                                                    |
+| `PartyIconsEvolved/Configuration/`| Saved settings                                                         |
+
+## Credits
+
+Inspired by [xivPartyIcons](https://github.com/nebel/xivPartyIcons) by shdwp, abashby, nebel and contributors,
+which this plugin uses as a reference for how to work with nameplates.
