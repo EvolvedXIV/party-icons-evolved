@@ -1,0 +1,61 @@
+name: Release
+
+# Run this by hand (Actions > Release > Run workflow) after bumping <Version> in PartyIconsEvolved.csproj.
+# It publishes a GitHub release with the plugin zip and points repo.json at it, which is what makes the new
+# version show up in game for everyone who added the custom repository.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download Dalamud
+        run: |
+          mkdir -p "$HOME/.xlcore/dalamud/Hooks/dev"
+          curl -sSfL -o "$RUNNER_TEMP/dalamud.zip" https://goatcorp.github.io/dalamud-distrib/latest.zip
+          unzip -q -o "$RUNNER_TEMP/dalamud.zip" -d "$HOME/.xlcore/dalamud/Hooks/dev"
+
+      - name: Build
+        run: dotnet build PartyIconsEvolved.sln -c Release
+
+      - name: Test
+        run: dotnet test PartyIconsEvolved.Tests -c Release
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('PartyIconsEvolved/bin/x64/Release/PartyIconsEvolved/PartyIconsEvolved.json', encoding='utf-8-sig'))['AssemblyVersion'])")
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" > /dev/null 2>&1; then
+            echo "::error::Release v$version already exists. Bump <Version> in PartyIconsEvolved.csproj first."
+            exit 1
+          fi
+
+      - name: Publish release
+        run: |
+          cp PartyIconsEvolved/bin/x64/Release/PartyIconsEvolved/latest.zip PartyIconsEvolved.zip
+          gh release create "${{ steps.version.outputs.tag }}" PartyIconsEvolved.zip \
+            --title "${{ steps.version.outputs.tag }}" --generate-notes --target "$GITHUB_SHA"
+
+      - name: Point repo.json at the release
+        run: |
+          python3 scripts/make_repo_json.py \
+            PartyIconsEvolved/bin/x64/Release/PartyIconsEvolved/PartyIconsEvolved.json repo.json
+          if ! git diff --quiet -- repo.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Update repo.json for ${{ steps.version.outputs.tag }}" -- repo.json
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
