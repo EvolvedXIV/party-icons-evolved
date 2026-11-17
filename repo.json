@@ -12,8 +12,8 @@
       "job icons"
     ],
     "InternalName": "PartyIconsEvolved",
-    "AssemblyVersion": "1.0.0.0",
-    "TestingAssemblyVersion": "1.0.0.0",
+    "AssemblyVersion": "1.0.1.0",
+    "TestingAssemblyVersion": "1.0.1.0",
     "RepoUrl": "https://github.com/ffxivplugins/party-icons-evolved",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -21,9 +21,9 @@
     "IsHide": "False",
     "IsTestingExclusive": "False",
     "DownloadCount": 0,
-    "LastUpdate": 1794884766,
-    "DownloadLinkInstall": "https://github.com/ffxivplugins/party-icons-evolved/releases/download/v1.0.0.0/PartyIconsEvolved.zip",
-    "DownloadLinkUpdate": "https://github.com/ffxivplugins/party-icons-evolved/releases/download/v1.0.0.0/PartyIconsEvolved.zip",
-    "DownloadLinkTesting": "https://github.com/ffxivplugins/party-icons-evolved/releases/download/v1.0.0.0/PartyIconsEvolved.zip"
+    "LastUpdate": 1794886723,
+    "DownloadLinkInstall": "https://github.com/ffxivplugins/party-icons-evolved/releases/download/v1.0.1.0/PartyIconsEvolved.zip",
+    "DownloadLinkUpdate": "https://github.com/ffxivplugins/party-icons-evolved/releases/download/v1.0.1.0/PartyIconsEvolved.zip",
+    "DownloadLinkTesting": "https://github.com/ffxivplugins/party-icons-evolved/releases/download/v1.0.1.0/PartyIconsEvolved.zip"
   }
 ]
