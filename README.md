@@ -85,6 +85,9 @@ The plugin ends up in `PartyIconsEvolved/bin/x64/Release/`. To load it in game, 
 The tests cover the parts that do not need the game (role parsing, role assignment, name shortening) and run on
 any platform.
 
+Notes on the Dalamud API, the toolchain and the release process shared by all EvolveXIV plugins live in
+[EvolveXIV/dalamud_reference](https://github.com/EvolveXIV/dalamud_reference).
+
 ## Releasing
 
 1. Bump `<Version>` in `PartyIconsEvolved/PartyIconsEvolved.csproj` and push to the default branch.

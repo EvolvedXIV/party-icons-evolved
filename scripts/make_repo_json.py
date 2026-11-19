@@ -3,7 +3,7 @@
 
 Usage: make_repo_json.py <packaged manifest> <repo.json>
 
-The packaged manifest is the PartyIconsEvolved.json that DalamudPackager puts next to latest.zip. The plugin's
+The packaged manifest is the <InternalName>.json that DalamudPackager puts next to latest.zip. The plugin's
 entry in repo.json is derived from it, so the plugin's .json and .csproj stay the only places to edit.
 
 repo.json lives in the shared EvolveXIV/releases repository and may list several plugins: only the entry with the
@@ -14,12 +14,11 @@ import json
 import sys
 import time
 
-ZIP_NAME = "PartyIconsEvolved.zip"
-
 
 def build_entry(manifest: dict, previous: dict) -> dict:
     version = manifest["AssemblyVersion"]
-    download = f"{manifest['RepoUrl']}/releases/download/v{version}/{ZIP_NAME}"
+    # The release workflow uploads the plugin as <InternalName>.zip.
+    download = f"{manifest['RepoUrl']}/releases/download/v{version}/{manifest['InternalName']}.zip"
 
     # Keep the timestamp when the version did not change, so that regenerating is a no-op.
     last_update = int(time.time())
