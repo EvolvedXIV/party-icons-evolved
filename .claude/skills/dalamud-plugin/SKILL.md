@@ -5,7 +5,8 @@ description: Build, change or debug a Dalamud plugin for FINAL FANTASY XIV (C#, 
 
 # Writing Dalamud plugins
 
-Knowledge from building `ffxivplugins/party-icons-evolved` (this repository) against **Dalamud 15.0.4,
+Knowledge from building `EvolveXIV/party-icons-evolved` (this repository; the org was called `ffxivplugins`
+until 2026-11) against **Dalamud 15.0.4,
 API level 15, Dalamud.NET.Sdk 15.0.0, .NET SDK 10.0.115**, in a Linux cloud container. Everything here
 compiled and ran unless marked **(unverified)**. v1.0.0 of this plugin was reported working in game by the
 user; anything that only exists from v1.0.1 on is marked **(not yet seen in game)**.
@@ -21,7 +22,7 @@ The source of this repository is the best worked example. Read it before writing
 | Context menu, chat listener | `PartyIconsEvolved/Roles/RoleContextMenu.cs`, `ChatRoleListener.cs` |
 | Party/job data via ClientStructs + Lumina | `PartyIconsEvolved/Game/` |
 | Tests that run without Dalamud | `PartyIconsEvolved.Tests/` |
-| CI, release, repo.json | `.github/workflows/`, `scripts/make_repo_json.py`, `repo.json` |
+| CI, release, repo.json | `.github/workflows/`, `scripts/make_repo_json.py`; `repo.json` itself lives in `EvolveXIV/releases` |
 
 Reference files next to this one:
 
@@ -49,7 +50,8 @@ would guess). Before writing a call, check it against the assemblies that will a
    ```
    `api.sh` builds a small MetadataLoadContext reflection dumper on first use (reflection-only, the dumped
    assembly is not executed). Nested types use `+`.
-3. The reference plugin `ffxivplugins/xivPartyIcons` (if attached) for nameplate/node techniques.
+3. The reference plugin xivPartyIcons (upstream `nebel/xivPartyIcons`; our fork was not reachable after the
+   org rename) for nameplate/node techniques.
 4. Only then the web (goatcorp/Dalamud, aers/FFXIVClientStructs sources). Docs sites may describe a
    different API level than the one installed; trust the local assemblies.
 
@@ -144,6 +146,8 @@ Details and verified signatures: `reference/api-notes.md`.
 | `repo.json` / release zip 404 for Dalamud | Dalamud downloads anonymously; a **private** GitHub repo returns 404 for both raw files and release assets. The repo must be public. |
 | First push to an empty repo made the `claude/...` branch the default | GitHub picks the first pushed branch. Push `main` first, or ask the user to change the default branch in Settings. |
 | `fatal: expected 'acknowledgments', received 'packfile'` on push | Harmless warning from the proxy; the push succeeded. |
+| GitHub org/repo renamed mid-project | Git and the GitHub MCP tools keep working through the old name (GitHub redirects; API results come back with the new name). `add_repo` refuses the new name while the old same-named repo is attached ("would share one directory") – keep using the old attachment, or start a new session with the new name as source. |
+| A branch rename the user mentions isn't visible | Check `git ls-remote origin` / `list_branches` before pushing to a branch by name; pushing to a name that doesn't exist creates a new branch. Prefer the default branch / `GITHUB_REF_NAME` over hard-coded `main`. |
 | `latest.zip` ends up inside the build output folder | That's DalamudPackager's output, `bin/x64/Release/<InternalName>/latest.zip`; copy/rename it for releases. |
 
 More API-level pitfalls (nameplate field removal semantics, NameIconId placeholder, node flag syncing,
@@ -152,15 +156,20 @@ text node font copying) are in `reference/api-notes.md`.
 ## 6. Shipping to users
 
 Users install through a custom repository: `/xlsettings` → Experimental → Custom Plugin Repositories →
-add `https://raw.githubusercontent.com/<owner>/<repo>/main/repo.json` → `/xlplugins`.
+add `https://raw.githubusercontent.com/EvolveXIV/releases/main/repo.json` → `/xlplugins`. That one file, in the
+separate public repo `EvolveXIV/releases`, lists every EvolveXIV plugin; release zips stay on each plugin repo.
 
-This repo automates it (verified twice, v1.0.0.0 and v1.0.1.0):
+This repo automates it:
 
-1. Bump `<Version>` in the plugin csproj, commit, push to `main`.
+1. Bump `<Version>` in the plugin csproj, commit, push to the default branch.
 2. Run the **Release** workflow (`workflow_dispatch`; trigger with `mcp__github__actions_run_trigger`,
-   method `run_workflow`, `workflow_id: release.yml`, `ref: main`).
-3. It builds, tests, creates GitHub release `v<version>` with `<InternalName>.zip`, regenerates `repo.json`
-   with `scripts/make_repo_json.py` and **pushes a commit to main** – fetch/fast-forward before your next push.
+   method `run_workflow`, `workflow_id: release.yml`, `ref: <default branch>`).
+3. It builds, tests, creates GitHub release `v<version>` with `<InternalName>.zip` on the plugin repo, then
+   checks out `EvolveXIV/releases` with the `RELEASES_TOKEN` secret and updates **only this plugin's entry**
+   in its `repo.json` via `scripts/make_repo_json.py`.
+
+Verified: releases v1.0.0.0 and v1.0.1.0 with the older single-repo flow (repo.json committed to the plugin
+repo). The two-repo flow and its `RELEASES_TOKEN` secret are **(not yet run)** – check the first run's logs.
 
 Full files: `reference/release.md`.
 

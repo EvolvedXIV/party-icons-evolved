@@ -1,10 +1,10 @@
 {
-  "Author": "ffxivplugins",
+  "Author": "EvolveXIV",
   "Name": "Party Icons Evolved",
-  "Punchline": "Job icons and raid role indicators on party nameplates, the native way.",
+  "Punchline": "Highly customizable job icons and raid role indicators on party nameplates.",
   "Description": "Customises the nameplates above your party members using the game's own nameplate UI.\n\n- Show or hide the name, shorten it to a maximum length (on top of the game's own Display Name Settings) and recolour it.\n- Add a job icon with configurable style, position and size.\n- Add a raid role indicator (MT, OT, H1, H2, M1, M2, R1, R2) with configurable colours.\n- Roles are assigned automatically, by a party chat message that contains only the role (e.g. \"M1\"), or from the right-click menu.\n\nOpen the settings with /pie.",
   "InternalName": "PartyIconsEvolved",
-  "RepoUrl": "https://github.com/ffxivplugins/party-icons-evolved",
+  "RepoUrl": "https://github.com/EvolveXIV/party-icons-evolved",
   "ApplicableVersion": "any",
   "Tags": [
     "UI",

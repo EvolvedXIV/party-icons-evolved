@@ -11,7 +11,7 @@ MyPlugin/
   Plugin.cs  Service.cs  Configuration/  Windows/ ...
 MyPlugin.Tests/                   # optional, game-free logic only
 .github/workflows/build.yml  .github/workflows/release.yml
-scripts/make_repo_json.py  repo.json
+scripts/make_repo_json.py         # updates our entry in EvolveXIV/releases/repo.json
 .gitignore                        # .vs/ .idea/ obj/ bin/ *.user
 ```
 

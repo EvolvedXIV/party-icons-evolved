@@ -1,10 +1,13 @@
-# Releasing: repo.json, GitHub releases, CI (verified: v1.0.0.0 and v1.0.1.0 shipped this way)
+# Releasing: repo.json, GitHub releases, CI
+
+v1.0.0.0 and v1.0.1.0 shipped with a single-repo flow; since the move to a shared `EvolveXIV/releases`
+repository the workflow updates `repo.json` there instead. That two-repo flow is **(not yet run)**.
 
 ## How users install
 
 `/xlsettings` → Experimental → Custom Plugin Repositories → add
-`https://raw.githubusercontent.com/OWNER/REPO/main/repo.json`, tick Enabled, save → `/xlplugins` → search.
-The repository **must be public**: Dalamud fetches `repo.json` and the zip anonymously, and private repos
+`https://raw.githubusercontent.com/EvolveXIV/releases/main/repo.json`, tick Enabled, save → `/xlplugins`.
+Both the releases repo and the plugin repo (which hosts the zips) **must be public**: Dalamud fetches `repo.json` and the zip anonymously, and private repos
 return 404 for both (checked with an unauthenticated request).
 
 ## repo.json
@@ -42,8 +45,12 @@ repository) and by this repo:
 - `IsHide`/`IsTestingExclusive` are **strings** in the reference file; kept that way.
 - `DalamudApiLevel` must match the Dalamud the user runs (15 here) or the plugin is shown as outdated.
 - `IconUrl` is optional (this plugin has none yet).
-- Don't hand-edit: `scripts/make_repo_json.py <packaged manifest> repo.json` generates it from
-  `bin/x64/Release/<InternalName>/<InternalName>.json` and keeps `LastUpdate` when the version didn't change.
+- Don't hand-edit entries: `scripts/make_repo_json.py <packaged manifest> repo.json` rewrites the entry whose
+  `InternalName` matches (appends it if missing) from `bin/x64/Release/<InternalName>/<InternalName>.json`.
+  Other plugins' entries and extra fields such as `IconUrl` are kept; `LastUpdate` and `DownloadCount` are kept
+  when the version didn't change, so rerunning is a byte-for-byte no-op (tested against the live file).
+- Text edits (punchline, description) belong in the plugin manifest; a hand edit in `repo.json` is overwritten
+  at the next release.
   The zip to publish is DalamudPackager's `bin/x64/Release/<InternalName>/latest.zip`, renamed to
   `<InternalName>.zip`.
 
@@ -83,32 +90,26 @@ checkout@v4/setup-dotnet@v4; harmless at the time of writing.
 
 ## Release workflow (`.github/workflows/release.yml`)
 
-Manually triggered. Needs `permissions: contents: write` and `GH_TOKEN: ${{ github.token }}` for `gh`.
-It refuses to run if the tag already exists (forces a version bump), creates the release, then commits the
-regenerated `repo.json` back to the branch as `github-actions[bot]` – so **fetch before pushing again**.
-The repo's copy is the source of truth; core steps, simplified (the real file reads the version from the
-packaged manifest into a step output `tag` instead of `$VERSION`):
+Manually triggered. Needs `permissions: contents: write` and `GH_TOKEN: ${{ github.token }}` for `gh`
+(release on the plugin repo), plus a secret **`RELEASES_TOKEN`** – a fine-grained PAT or GitHub App token with
+*Contents: Read and write* on `EvolveXIV/releases` – because the built-in `GITHUB_TOKEN` can only write to the
+repository the workflow runs in. Claude cannot create repository secrets; the user has to.
 
-```yaml
-      - name: Publish release
-        run: |
-          cp MyPlugin/bin/x64/Release/MyPlugin/latest.zip MyPlugin.zip
-          gh release create "v$VERSION" MyPlugin.zip --title "v$VERSION" --generate-notes --target "$GITHUB_SHA"
-      - name: Point repo.json at the release
-        run: |
-          python3 scripts/make_repo_json.py MyPlugin/bin/x64/Release/MyPlugin/MyPlugin.json repo.json
-          if ! git diff --quiet -- repo.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Update repo.json for v$VERSION" -- repo.json
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-```
+Order matters so that a failure never leaves a half-published release:
+1. fail fast if `RELEASES_TOKEN` is empty;
+2. `actions/checkout` the plugin repo, then `actions/checkout` with `repository: EvolveXIV/releases`,
+   `token: ${{ secrets.RELEASES_TOKEN }}`, `path: releases-repo` (after the first checkout, which would clean it);
+3. build, test, refuse if tag `v<version>` exists;
+4. `gh release create`;
+5. in `releases-repo`: run the generator on `repo.json`, commit as `github-actions[bot]`, `git push origin HEAD`.
+
+The repo's `.github/workflows/release.yml` is the source of truth.
 
 From a Claude session: there is no `gh` CLI for this; trigger with the GitHub MCP tool
-(`actions_run_trigger`, method `run_workflow`, `workflow_id: release.yml`, `ref: main`), poll with
-`actions_list` (`list_workflow_jobs`), confirm with `get_latest_release`, then
-`git fetch origin main && git merge --ff-only FETCH_HEAD`. A run takes about 30–60 s once started.
+(`actions_run_trigger`, method `run_workflow`, `workflow_id: release.yml`, `ref: <default branch>`), poll with
+`actions_list` (`list_workflow_jobs`), confirm with `get_latest_release` and by reading `repo.json` in
+`EvolveXIV/releases`. The plugin repo no longer gets a bot commit, so no fetch is needed before your next push.
+A run took about 30–60 s once started.
 
 ## Cloud environment setup script (saved on the "Damalud Plugins" environment)
 
