@@ -1,14 +1,26 @@
 name: Release
 
-# Run this by hand (Actions > Release > Run workflow) after bumping <Version> in PartyIconsEvolved.csproj.
-# It publishes a GitHub release with the plugin zip here, then updates this plugin's entry in repo.json in the
-# EvolvedXIV/releases repository, which is what makes the new version show up in game for everyone who added
-# https://raw.githubusercontent.com/EvolvedXIV/releases/main/repo.json as a custom repository.
+# Publishes a GitHub release with the plugin zip here. Bump <Version> in PartyIconsEvolved.csproj first. Two ways to run it:
 #
-# Requires a repository secret RELEASES_TOKEN: a fine-grained personal access token (or GitHub App token) with
-# "Contents: Read and write" on EvolvedXIV/releases. The built-in GITHUB_TOKEN can only write to this repository.
+# - By hand (Actions > Release > Run workflow, on the default branch). With "Update repo.json" ticked (the
+#   default) it then updates this plugin's entry in repo.json in the EvolvedXIV/releases repository, which is what
+#   makes the new version show up in game for everyone who added
+#   https://raw.githubusercontent.com/EvolvedXIV/releases/main/repo.json as a custom repository. That needs a
+#   repository secret RELEASES_TOKEN: a fine-grained personal access token (or GitHub App token) with
+#   "Contents: Read and write" on EvolvedXIV/releases. The built-in GITHUB_TOKEN can only write to this repository.
+#
+# - By pushing a tag v<Version> (e.g. v1.2.0.0), from any branch. This only publishes the release; repo.json is left
+#   alone. Either way the run's summary shows the repo.json entry for this version, to paste in by hand.
 on:
   workflow_dispatch:
+    inputs:
+      update_repo_json:
+        description: Update repo.json in EvolvedXIV/releases (needs the RELEASES_TOKEN secret)
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -16,6 +28,7 @@ permissions:
 env:
   RELEASES_REPO: EvolvedXIV/releases
   PLUGIN_DIR: PartyIconsEvolved/bin/x64/Release/PartyIconsEvolved
+  UPDATE_REPO_JSON: ${{ github.event_name == 'workflow_dispatch' && inputs.update_repo_json }}
 
 jobs:
   release:
@@ -24,11 +37,12 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check for the releases token
+        if: env.UPDATE_REPO_JSON == 'true'
         env:
           RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           if [ -z "$RELEASES_TOKEN" ]; then
-            echo "::error::Secret RELEASES_TOKEN is not set. See the comment at the top of release.yml."
+            echo "::error::Secret RELEASES_TOKEN is not set. See the comment at the top of release.yml, or untick \"Update repo.json\"."
             exit 1
           fi
 
@@ -36,6 +50,7 @@ jobs:
 
       # Checked out before anything is published, so a bad token fails the run before a release exists.
       - name: Check out the releases repository
+        if: env.UPDATE_REPO_JSON == 'true'
         uses: actions/checkout@v4
         with:
           repository: ${{ env.RELEASES_REPO }}
@@ -63,6 +78,10 @@ jobs:
         run: |
           version=$(python3 -c "import json; print(json.load(open('$PLUGIN_DIR/PartyIconsEvolved.json', encoding='utf-8-sig'))['AssemblyVersion'])")
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the plugin version v$version in PartyIconsEvolved.csproj."
+            exit 1
+          fi
           if gh release view "v$version" > /dev/null 2>&1; then
             echo "::error::Release v$version already exists. Bump <Version> in PartyIconsEvolved.csproj first."
             exit 1
@@ -74,7 +93,21 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" PartyIconsEvolved.zip \
             --title "${{ steps.version.outputs.tag }}" --generate-notes --target "$GITHUB_SHA"
 
+      - name: Show the repo.json entry
+        run: |
+          python3 scripts/make_repo_json.py "$PLUGIN_DIR/PartyIconsEvolved.json" "$RUNNER_TEMP/entry.json"
+          {
+            echo "### repo.json entry for ${{ steps.version.outputs.tag }}"
+            echo
+            echo "Download: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/${{ steps.version.outputs.tag }}/PartyIconsEvolved.zip"
+            echo
+            echo '```json'
+            python3 -c "import json, sys; print(json.dumps(json.load(open(sys.argv[1]))[0], indent=2))" "$RUNNER_TEMP/entry.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Update repo.json in the releases repository
+        if: env.UPDATE_REPO_JSON == 'true'
         working-directory: releases-repo
         run: |
           python3 ../scripts/make_repo_json.py "../$PLUGIN_DIR/PartyIconsEvolved.json" repo.json
