@@ -2,11 +2,11 @@ name: Release
 
 # Run this by hand (Actions > Release > Run workflow) after bumping <Version> in PartyIconsEvolved.csproj.
 # It publishes a GitHub release with the plugin zip here, then updates this plugin's entry in repo.json in the
-# EvolveXIV/releases repository, which is what makes the new version show up in game for everyone who added
-# https://raw.githubusercontent.com/EvolveXIV/releases/main/repo.json as a custom repository.
+# EvolvedXIV/releases repository, which is what makes the new version show up in game for everyone who added
+# https://raw.githubusercontent.com/EvolvedXIV/releases/main/repo.json as a custom repository.
 #
 # Requires a repository secret RELEASES_TOKEN: a fine-grained personal access token (or GitHub App token) with
-# "Contents: Read and write" on EvolveXIV/releases. The built-in GITHUB_TOKEN can only write to this repository.
+# "Contents: Read and write" on EvolvedXIV/releases. The built-in GITHUB_TOKEN can only write to this repository.
 on:
   workflow_dispatch:
 
@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 env:
-  RELEASES_REPO: EvolveXIV/releases
+  RELEASES_REPO: EvolvedXIV/releases
   PLUGIN_DIR: PartyIconsEvolved/bin/x64/Release/PartyIconsEvolved
 
 jobs:

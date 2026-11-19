@@ -6,7 +6,7 @@ Usage: make_repo_json.py <packaged manifest> <repo.json>
 The packaged manifest is the <InternalName>.json that DalamudPackager puts next to latest.zip. The plugin's
 entry in repo.json is derived from it, so the plugin's .json and .csproj stay the only places to edit.
 
-repo.json lives in the shared EvolveXIV/releases repository and may list several plugins: only the entry with the
+repo.json lives in the shared EvolvedXIV/releases repository and may list several plugins: only the entry with the
 same InternalName is touched (or appended if missing). Fields of that entry that this script does not generate,
 such as IconUrl, are kept. Running it again for an unchanged version leaves the file byte-for-byte the same.
 """
